@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Asistente de Redes</title>
+    <style>
+      html {
+        height: 100%;
+        width: 100%;
+        font-family: sans-serif;
+      }
+
+      #contenedor-principal {
+        text-align: center;
+        border: 2px solid #333;
+        border-radius: 10px;
+        padding: 2em;
+        margin: 2em auto;
+        max-width: 600px;
+        background-color: #f9f9f9;
+      }
+
+      button {
+          padding: 10px 20px;
+          font-size: 16px;
+          cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="contenedor-principal">
+        <h2>Asistente de Redes de Computadoras</h2>
+        <p id="zona-entrada">...</p>
+        <p id="zona-salida">...</p>
+        <button id="btn-escuchar" onclick="iniciarEscucha()">Escuchar</button>
+    </div>
+    
+    <script>
+      // Variables de estado
+      let faseConversacion = 'ESPERANDO_PALABRA_CLAVE'; 
+      let categoriaElegida = '';
+      let subcategoriaElegida = '';
+
+      // Iniciar reconocimiento
+      function iniciarEscucha() {
+        let areaEntrada = document.getElementById('zona-entrada');
+        let areaSalida = document.getElementById('zona-salida');
+
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var reconocedor = new SpeechRecognition();
+        
+        reconocedor.lang = "es-MX";
+        reconocedor.continuous = false; 
+        reconocedor.start();
+
+        reconocedor.onresult = function(evento) {
+          let textoEscuchado = evento.results[0][0].transcript.toLowerCase().trim();
+          console.log("Detectado: ", textoEscuchado);
+          
+          if(areaEntrada) areaEntrada.innerHTML = "Usuario: " + textoEscuchado;
+
+          // Lógica de 4 niveles
+          switch (faseConversacion) {
+            
+            // NIVEL 0: Activación
+            case 'ESPERANDO_PALABRA_CLAVE':
+              if (textoEscuchado.includes("redes")) {
+                faseConversacion = 'ESPERANDO_CATEGORIA';
+                emitirRespuesta(areaSalida, "Activado. ¿Quieres buscar información sobre protocolos o sobre hardware?"); 
+              }
+              break;
+
+            // NIVEL 1: Categoría Principal
+            case 'ESPERANDO_CATEGORIA':
+              if (textoEscuchado.includes("protocolos")) {
+                  categoriaElegida = "protocolos";
+                  faseConversacion = 'ESPERANDO_SUBCATEGORIA';
+                  emitirRespuesta(areaSalida, "Entendido, protocolos. ¿Deseas investigar sobre el modelo o si, o sobre tcp ip?"); 
+              } else if (textoEscuchado.includes("hardware")) {
+                  categoriaElegida = "hardware";
+                  faseConversacion = 'ESPERANDO_SUBCATEGORIA';
+                  emitirRespuesta(areaSalida, "Entendido, hardware. ¿Buscas información sobre routers o sobre switches?"); 
+              } else {
+                  emitirRespuesta(areaSalida, "Por favor, elige protocolos o hardware.");
+              }
+              break;
+
+            // NIVEL 2: Discriminación
+            case 'ESPERANDO_SUBCATEGORIA':
+              if (categoriaElegida === "protocolos") {
+                  if (textoEscuchado.includes("osi") || textoEscuchado.includes("o si")) {
+                      subcategoriaElegida = "modelo osi";
+                      faseConversacion = 'ESPERANDO_PARAMETRO_FINAL';
+                      emitirRespuesta(areaSalida, "¿De qué capa o protocolo exacto del modelo OSI quieres saber?"); 
+                  } else if (textoEscuchado.includes("tcp") || textoEscuchado.includes("ip")) {
+                      subcategoriaElegida = "tcp ip";
+                      faseConversacion = 'ESPERANDO_PARAMETRO_FINAL';
+                      emitirRespuesta(areaSalida, "¿Qué capa o protocolo de la suite TCP/IP necesitas buscar?"); 
+                  } else {
+                      emitirRespuesta(areaSalida, "Dime si modelo OSI o TCP/IP.");
+                  }
+              } else if (categoriaElegida === "hardware") {
+                  if (textoEscuchado.includes("router") || textoEscuchado.includes("enrutador")) {
+                      subcategoriaElegida = "routers";
+                      faseConversacion = 'ESPERANDO_PARAMETRO_FINAL';
+                      emitirRespuesta(areaSalida, "¿Quieres buscar configuración básica o marcas principales de routers?"); 
+                  } else if (textoEscuchado.includes("switch") || textoEscuchado.includes("conmutador")) {
+                      subcategoriaElegida = "switches";
+                      faseConversacion = 'ESPERANDO_PARAMETRO_FINAL';
+                      emitirRespuesta(areaSalida, "¿Quieres buscar configuración básica o marcas principales de switches?"); 
+                  } else {
+                      emitirRespuesta(areaSalida, "Dime si routers o switches.");
+                  }
+              }
+              break;
+
+            // NIVEL 3: Resolución Final
+            case 'ESPERANDO_PARAMETRO_FINAL':
+              let parametroFinal = textoEscuchado;
+              emitirRespuesta(areaSalida, `Buscando ${parametroFinal} de ${subcategoriaElegida} en Google...`);
+              let consultaWeb = encodeURIComponent(`${parametroFinal} de ${subcategoriaElegida} en redes`);
+              window.open(`https://www.google.com/search?q=${consultaWeb}`, '_blank');
+              resetearEstados();
+              break;
+          }
+        };
+
+        reconocedor.onend = function() {
+          if (faseConversacion !== 'ESPERANDO_PALABRA_CLAVE') {
+            try {
+              reconocedor.start(); 
+            } catch(e) {}
+          }
+        };
+      }
+
+      function emitirRespuesta(nodoDOM, mensaje) {
+        if(nodoDOM) nodoDOM.innerHTML = "Asistente: " + mensaje;
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel(); 
+          let voz = new SpeechSynthesisUtterance(mensaje);
+          voz.lang = 'es-MX'; 
+          window.speechSynthesis.speak(voz);
+        }
+      }
+
+      function resetearEstados() {
+        faseConversacion = 'ESPERANDO_PALABRA_CLAVE';
+        categoriaElegida = '';
+        subcategoriaElegida = '';
+      }
+    </script>
+  </body>
+</html>
